@@ -176,8 +176,9 @@ public class Server implements MasterServerApi {
 	public @ResponseBody Set<String>  psSearch(@RequestParam(PS_PARAMETER) String ps,@RequestParam(VIDEO_PARAMETER) String video){
 		Set<String> users = vidName_UserMap.get(video);
 		//TODO check is following line gives error in null
-		System.out.println("Search result : "+ Arrays.asList(users.toArray(new String[0])) );
-		if(users==null) return null;
+		System.out.println("Search : "+users.size());
+		if(users.size()==0) return null;
+		// System.out.println("Search result : "+ Arrays.asList(users.toArray(new String[0])) );
 		// String [] a = new String[]
 		return users;
 	}
@@ -198,7 +199,7 @@ public class Server implements MasterServerApi {
 			 	user_vidNameMap.put(user, new HashSet<String>());
 			}	
 			Set<String> vidSet = user_vidNameMap.get(user);
-			for (int i=1;i<videos.length ;i++ ) {
+			for (int i=0;i<videos.length ;i++ ) {
 				String temp = videos[i].trim();
 				if(!temp.equals(""))
 				{

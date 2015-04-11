@@ -111,22 +111,14 @@ public class Server implements ParentServerApi	{
 	@RequestMapping(value=VIDEO_SEARCH_PATH, method=RequestMethod.GET)
 	public @ResponseBody String[] searchVideo(@RequestParam(value="username") String uName,@RequestParam(value="video") String videoHash,HttpServletResponse response){
 		System.out.println("Search from:" +uName);
-		if(!vidName_UserMap.containsKey(videoHash))
+		if(!user_vidNameMap.containsKey(uName))
 		{
 			response.setStatus(402); //client not connected
 			return null;
 		}
 
 		Set<String> users = vidName_UserMap.get(videoHash);
-		Iterator<String> it = users.iterator();
-		while(it.hasNext())
-		{
-			String temp = it.next();
-			if(!activeUsers.contains(temp))
-			{
-				it.remove();				
-			}
-		}
+		
 		if(users==null)
 		{
 			try{
@@ -138,7 +130,28 @@ public class Server implements ParentServerApi	{
 				return null;
 			}
 			if(users==null) return null;
-			vidName_UserMap.get(videoHash).addAll(users);
+			if(vidName_UserMap.containsKey(videoHash))
+			{
+				vidName_UserMap.get(videoHash).addAll(users);
+			}
+			else
+			{
+				Set<String> s = new HashSet<String>();
+				s.addAll(users);
+				vidName_UserMap.put(videoHash,s);
+			}
+		}
+		else
+		{
+			Iterator<String> it = users.iterator();
+			while(it.hasNext())
+			{
+				String temp = it.next();
+				if(!activeUsers.contains(temp))
+				{
+					it.remove();				
+				}
+			}
 		}
 		System.out.println("Search result : "+ users.toArray(new String[0]) );
 		// String [] a = new String[]
