@@ -76,7 +76,7 @@ public class Server implements ParentServerApi	{
 	// }
 
 
-	@RequestMapping(value=PS_DELETE_VIDEO, method=RequestMethod.GET)
+	@RequestMapping(value=PS_DELETE_VIDEO, method=RequestMethod.DELETE)
 	public @ResponseBody  int ps_DeleteVideo(@RequestParam(USER_PARAMETER) String user, @RequestParam(VIDEO_PARAMETER) String video){
 		try{
 			removeFromvidName_UserMap(user,video);
@@ -89,7 +89,7 @@ public class Server implements ParentServerApi	{
 		}
 	}
 
-	@RequestMapping(value=PS_DELETE_CLIENT, method=RequestMethod.GET)
+	@RequestMapping(value=PS_DELETE_CLIENT, method=RequestMethod.DELETE)
 	public @ResponseBody  int ps_DeleteClient(@RequestParam(USER_PARAMETER) String user){
 		try{
 			activeUsers.remove(user);

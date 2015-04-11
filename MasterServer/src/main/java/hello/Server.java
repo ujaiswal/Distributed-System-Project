@@ -174,10 +174,12 @@ public class Server implements MasterServerApi {
 
 	@RequestMapping(value=PS_VIDEO_SEARCH,method=RequestMethod.GET)
 	public @ResponseBody Set<String>  psSearch(@RequestParam(PS_PARAMETER) String ps,@RequestParam(VIDEO_PARAMETER) String video){
+		
+
 		Set<String> users = vidName_UserMap.get(video);
 		//TODO check is following line gives error in null
+		if(users==null) return null;
 		System.out.println("Search : "+users.size());
-		if(users.size()==0) return null;
 		// System.out.println("Search result : "+ Arrays.asList(users.toArray(new String[0])) );
 		// String [] a = new String[]
 		return users;
