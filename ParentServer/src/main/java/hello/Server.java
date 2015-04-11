@@ -46,8 +46,8 @@ public class Server implements ParentServerApi	{
 	public static final int ACK = 100;
 	public static final int PS_NOT_CONNECTED = -401;
 
-	public static final int TTL = 60*1000; //60 seconds
-	public static final int TTL1 = 10*1000; //60 seconds
+	public static final int TTL = 6000*1000; //60 seconds
+	public static final int TTL1 = 100*1000; //60 seconds
 	public static final int SEND_HEART_BEAT_DELAY = TTL1/3;
 	public static final int SCHEDULED_CHECK = 100*1000; //10 seconds
 
@@ -55,7 +55,7 @@ public class Server implements ParentServerApi	{
 	// videos that are sent to it by clients
 	private Map<String,Set<String> > vidName_UserMap = new HashMap<String,Set<String> > ();
 	private Map<String,Set<String> > user_vidNameMap = new HashMap<String,Set<String> > ();	//only users connected on this PS
-	private Set<String> activeUsers;
+	private Set<String> activeUsers = new HashSet<String> ();
 	private Map<String,Long> userAliveMap = new TreeMap<String,Long >();
 	private static String hostAdder;
 	// private Set<User> users = new TreeSet<User>();
@@ -153,12 +153,16 @@ public class Server implements ParentServerApi	{
 			String[] videos = allVid.split(",");
 			String uName = videos[0].trim();
 			videos =  java.util.Arrays.copyOfRange(videos, 1, videos.length);
+			// System.out.println("Client connect"+hostAdder+" "+uName+" "+ Arrays.asList(videos));
 			int ans =masterService.psConnectClient(hostAdder,uName,videos);
+			// System.out.println("ans =" +ans +" "+FAILED);
 			while(ans == PS_NOT_CONNECTED) {
 				reconnectToMS();
 				ans = masterService.psConnectClient(hostAdder,uName,videos);
 			}
 			if(ans == FAILED) return FAILED;
+			// System.out.println("Clinet "+ uName + " connected");
+
 			if(user_vidNameMap.containsKey(uName))
 			{ 
 				reply = CLIENT_ALREADY_CONNECTED;
@@ -168,9 +172,13 @@ public class Server implements ParentServerApi	{
 			 	reply = CLIENT_CONNECTED;
 			 	user_vidNameMap.put(uName, new HashSet<String>());
 			}	
+			// System.out.println("Clinet "+ uName + " connected");
+
 			Set<String> vidSet = user_vidNameMap.get(uName);
 			for (int i=0;i<videos.length ;i++ ) {
 				String temp = videos[i].trim();
+				// System.out.println("add video");
+
 				if(!temp.equals(""))
 				{
 					vidSet.add(temp);
@@ -178,14 +186,18 @@ public class Server implements ParentServerApi	{
 
 				}
 			}
-			userAliveMap.put(uName, System.currentTimeMillis()+TTL);
-			activeUsers.remove(uName);
+			// System.out.println("Clinet "+ uName + " connected");
+
+			userAliveMap.put(uName,new Long(System.currentTimeMillis()+TTL));
+			// System.out.println("Clinet "+ uName + " connected");
+
+			activeUsers.add(uName);
 			System.out.println("Clinet "+ uName + " connected");
 			return reply;
 		}
 		catch(Exception e)
 		{
-			System.err.println(e.getMessage());
+			System.out.println("Error: " + e.getMessage());
 			return FAILED;
 		}
 	}
@@ -272,7 +284,7 @@ public class Server implements ParentServerApi	{
 				response.setStatus(402); //client not connected
 				return 0;
 			}
-			userAliveMap.put(uName, System.currentTimeMillis()+TTL);
+			userAliveMap.put(uName, new Long(System.currentTimeMillis()+TTL));
 			return TTL;
 		}
 		catch(Exception e)
@@ -312,7 +324,7 @@ public class Server implements ParentServerApi	{
 			String user = it.next();
 			if(userAliveMap.containsKey(user))
 			{
-				if(userAliveMap.get(user)<time)
+				if(userAliveMap.get(user).longValue()<time)
 				{
 					removeUser(user);
 					userAliveMap.remove(user);
@@ -415,7 +427,7 @@ public class Server implements ParentServerApi	{
 			    while (ee.hasMoreElements())
 			    {
 			        InetAddress i = (InetAddress) ee.nextElement();
-			        if(i.getHostAddress().contains("10."))
+			        if(i.getHostAddress().contains("10.") || i.getHostAddress().contains("192."))
 			        {
 			        	hostAdder = i.getHostAddress().trim();
 			        	System.out.println("Run at start. IP:" + hostAdder);
