@@ -46,10 +46,10 @@ public class Server implements ParentServerApi	{
 	public static final int ACK = 100;
 	public static final int PS_NOT_CONNECTED = -401;
 
-	public static final int TTL = 6000*1000; //60 seconds
-	public static final int TTL1 = 100*1000; //60 seconds
+	public static final int TTL = 10*1000; //60 seconds
+	public static final int TTL1 = 5*1000; //60 seconds
 	public static final int SEND_HEART_BEAT_DELAY = TTL1/3;
-	public static final int SCHEDULED_CHECK = 100*1000; //10 seconds
+	public static final int SCHEDULED_CHECK = 3*1000; //10 seconds
 
 	// An in-memory list that the servlet uses to store the
 	// videos that are sent to it by clients
@@ -154,7 +154,7 @@ public class Server implements ParentServerApi	{
 				}
 			}
 		}
-		System.out.println("Search result : "+ users.toArray(new String[0]) );
+		System.out.println("Search result : "+ Arrays.asList(users.toArray(new String[0])) );
 		// String [] a = new String[]
 		return users.toArray(new String[0]);
 	}
@@ -279,6 +279,7 @@ public class Server implements ParentServerApi	{
 				response.setStatus(402); //client not connected
 				return 0;
 			}
+			System.out.println("Disconnecting "+ uName);
 			removeUser(uName);
 			userAliveMap.remove(uName);
 			return ACK;
@@ -349,7 +350,7 @@ public class Server implements ParentServerApi	{
 				throw new RuntimeException("user in user-vid map but not in user-alive map");
 			}
 		}
-		System.out.println("Debug: Scheduled Check count:"+count+" user count:"+user_vidNameMap.size());
+		// System.out.println("Debug: Scheduled Check count:"+count+" user count:"+user_vidNameMap.size());
 		System.gc();
 	}
 

@@ -63,7 +63,7 @@ public class Server implements MasterServerApi {
 
 	public static final int FAILED = -1;
 	public static final int ACK = 100;
-	public static final int TTL1 = 10000*1000; //60 seconds
+	public static final int TTL1 = 5*1000; //60 seconds
 	public static final int SCHEDULED_CHECK = 2*1000; //10 seconds
 
 	// An in-memory list that the servlet uses to store the
