@@ -76,21 +76,29 @@ class FILE_CHK_Thread (threading.Thread):
 			# TODO Compare the prev video list and current video list and send the add or delete command to the server
 			addititons = curr_video_list.difference(prev_video_list)
 			if len(addititons) > 0 :
-				print DEBUG + 'Sending addition to ' + Server_IP_Address
+				print DEBUG + 'Sending additions to ' + Server_IP_Address
 				params = { 
 					'username' : Client_IP_Address,
-					'video' : ','.join(str(e) for e in addititons)
 				}
-				response = requests.put('http://' + Server_IP_Address + ':' + Server_Port + '/video/add', params=params )
+				for e in addititons :
+					params['video'] = str(e)
+					try: 
+						response = requests.put('http://' + Server_IP_Address + ':' + Server_Port + '/video/add', params=params )
+					except:
+						pass	
 			
 			deletions = prev_video_list.difference(curr_video_list)
 			if len(deletions) > 0 :
 				params = { 
 					'username' : Client_IP_Address,
-					'video' : ','.join(str(e) for e in deletions)
 				}
-				response = requests.delete('http://' + Server_IP_Address + ':' + Server_Port + '/video/remove', params=params )
-				print DEBUG + 'Sending deletion to ' + Server_IP_Address
+				for e in deletions :
+					params['video'] = str(e)
+					try: 
+						response = requests.delete('http://' + Server_IP_Address + ':' + Server_Port + '/video/remove', params=params )
+					except:
+						pass
+				print DEBUG + 'Sending deletions to ' + Server_IP_Address
 
 			prev_video_list = curr_video_list
 
