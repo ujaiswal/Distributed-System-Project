@@ -168,9 +168,10 @@ def startSendingHEARTBEATToParentServer(TTL):
 	delay = TTL / 3
 	while 1:
 		params = { 'username': Client_IP_Address }
-		response = requests.get('http://' + Server_IP_Address + ':' + Server_Port + '/client/heartbeat', params=params )
-		if response.ok:
-			print DEBUG + '%s:\t%s' % ( 'Sent HEARTBEAT to ' + Server_IP_Address + ':' + Server_Port, response.text )
+		try:
+			response = requests.get('http://' + Server_IP_Address + ':' + Server_Port + '/client/heartbeat', params=params )
+		except:
+			pass
 		time.sleep(delay)
 
 # Gets TTL from parent server
@@ -272,6 +273,10 @@ def watchVideo(video_id, src = None):
 			new_tag['type'] = 'video/mp4'
 			div.append(new_tag)
 
+		move_down_divs = soup.find_all('div', {'id': 'watch7-sidebar'})
+		for move_down_div in move_down_divs :
+			move_down_div['style'] = 'margin-top: 0px'
+
 	all_as = soup.find_all('a')
 	for a in all_as:
 		if 'watch' in a['href'] or 'results' in a['href']:
@@ -289,6 +294,7 @@ def downloadFileFromYoutube(video_id):
 
 # Downloads the video from other client
 def downloadFileFromClient(video_id,video_loc):
+	print DEBUG + 'Downloading video ' + video_id + ' from ' + video_loc
 	videos_path = Current_folder + '/static/Client/videos/'
 	response = requests.get(video_loc, stream=True)
 	
@@ -319,7 +325,6 @@ def getVideoList():
 	return video_file_names
 
 def check_whether_video_is_there(video_id, available):
-	# TODO Check the client whether he actually has the video
 	try:
 		response = requests.get('http://' + available + ':8000/check?v=' + video_id)
 		if response.ok:
@@ -339,6 +344,7 @@ def searchVideo(video_id):
 	# Check response
 
 	available_list = {}
+	print DEBUG + response.text
 	if len(response.text) > 0:
 		available_list = json.loads(response.text)
 
