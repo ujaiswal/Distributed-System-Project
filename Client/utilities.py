@@ -311,7 +311,11 @@ def findVideo(video_id):
 def getVideoList():
 	videos_path = Current_folder + '/static/Client/videos/'
 	video_files = [ f for f in os.listdir(videos_path) if os.path.isfile(os.path.join(videos_path,f)) ]
-	video_file_names = [re.search('(.+?)\.mp4', video_file).group(1) for video_file in video_files ]
+	video_file_names = []
+	try:
+		video_file_names = [re.search('(.+?)\.mp4', video_file).group(1) for video_file in video_files ]
+	except:
+		pass
 	return video_file_names
 
 def check_whether_video_is_there(video_id, available):
