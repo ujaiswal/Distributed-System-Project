@@ -1,4 +1,5 @@
 import os
+import sys
 import socket
 import requests
 import urllib
@@ -23,6 +24,8 @@ Client_Port = '8000'
 
 Server_IP_Address_List = {}
 Current_index = 0
+IsFirstConnect = True
+
 Server_IP_Address = '0.0.0.0'
 Server_Port = '8080'
 
@@ -73,7 +76,6 @@ class FILE_CHK_Thread (threading.Thread):
 			time.sleep(self.delay)
 			curr_video_list = set(getVideoList())
 			
-			# TODO Compare the prev video list and current video list and send the add or delete command to the server
 			addititons = curr_video_list.difference(prev_video_list)
 			if len(addititons) > 0 :
 				print DEBUG + 'Sending additions to ' + Server_IP_Address
@@ -82,23 +84,31 @@ class FILE_CHK_Thread (threading.Thread):
 				}
 				for e in addititons :
 					params['video'] = str(e)
-					try: 
-						response = requests.put('http://' + Server_IP_Address + ':' + Server_Port + '/video/add', params=params )
-					except:
-						pass	
+					proceed = False
+					while not proceed:
+						try: 
+							response = requests.put('http://' + Server_IP_Address + ':' + Server_Port + '/video/add', params=params )
+							if response.ok :
+								proceed = True
+						except:
+							startConnect()
 			
 			deletions = prev_video_list.difference(curr_video_list)
 			if len(deletions) > 0 :
+				print DEBUG + 'Sending deletions to ' + Server_IP_Address
 				params = { 
 					'username' : Client_IP_Address,
 				}
 				for e in deletions :
 					params['video'] = str(e)
-					try: 
-						response = requests.delete('http://' + Server_IP_Address + ':' + Server_Port + '/video/remove', params=params )
-					except:
-						pass
-				print DEBUG + 'Sending deletions to ' + Server_IP_Address
+					proceed = False
+					while not proceed:
+						try: 
+							response = requests.delete('http://' + Server_IP_Address + ':' + Server_Port + '/video/remove', params=params )
+							if response.ok :
+								proceed = True
+						except:
+							startConnect()
 
 			prev_video_list = curr_video_list
 
@@ -145,32 +155,41 @@ def setClientIP():
 
 # Get the best server from master server on startup
 def  getServerIPsfromMaster():
-	response = requests.get('http://' + Master_Server_IP_Address + ':' + Master_Server_Port + '/client/askPS')
-	while not response.ok :
-		print DEBUG + 'Unable to connect to ' + Master_Server_IP_Address + ':' + Master_Server_Port
-		print DEBUG + 'Retrying ...'
-		time.sleep(1)
-		response = requests.get('http://' + Master_Server_IP_Address + ':' + Master_Server_Port + '/client/askPS')
-	
-	global Server_IP_Address_List
-	Server_IP_Address_List = json.loads(response.text)
+	global Current_index
+	global IsFirstConnect
+	Current_index = 0
+	IsFirstConnect = True
+
+	try :
+		response = requests.get('http://' + Master_Server_IP_Address + ':' + Master_Server_Port + '/client/askPS')	
+		if response.ok :
+			global Server_IP_Address_List
+			Server_IP_Address_List = json.loads(response.text)
+	except :
+		pass
 
 # Sets the global variable Server_IP_Address
 def setServerIP():
+	global Server_IP_Address_List
 	if Server_IP_Address_List :
 		global Server_IP_Address
 		global Current_index
+		if Current_index == 0 and not IsFirstConnect:
+			sys.exit()
 		Server_IP_Address = str(Server_IP_Address_List[Current_index])
 		Current_index = (Current_index + 1) % len(Server_IP_Address_List)
 		print DEBUG + 'Server IP Address: ' + Server_IP_Address
+	else : 
+		sys.exit()
 
 def startSendingHEARTBEATToParentServer(TTL):
 	delay = TTL / 3
 	while 1:
 		params = { 'username': Client_IP_Address }
-		response = requests.get('http://' + Server_IP_Address + ':' + Server_Port + '/client/heartbeat', params=params )
-		if response.ok:
-			print DEBUG + '%s:\t%s' % ( 'Sent HEARTBEAT to ' + Server_IP_Address + ':' + Server_Port, response.text )
+		try:
+			response = requests.get('http://' + Server_IP_Address + ':' + Server_Port + '/client/heartbeat', params=params )
+		except:
+			pass
 		time.sleep(delay)
 
 # Gets TTL from parent server
@@ -209,6 +228,13 @@ def startConnect():
 
 	if video_list:
 		data = data + ',' + ','.join(video_list)
+
+	global IsFirstConnect
+	if not IsFirstConnect :
+		time.sleep(10)
+		getServerIPsfromMaster()
+		setServerIP()
+		IsFirstConnect = False
 
 	proceed = False
 	while not proceed :
@@ -272,6 +298,10 @@ def watchVideo(video_id, src = None):
 			new_tag['type'] = 'video/mp4'
 			div.append(new_tag)
 
+		move_down_divs = soup.find_all('div', {'id': 'watch7-sidebar'})
+		for move_down_div in move_down_divs :
+			move_down_div['style'] = 'margin-top: 0px'
+
 	all_as = soup.find_all('a')
 	for a in all_as:
 		if 'watch' in a['href'] or 'results' in a['href']:
@@ -289,6 +319,7 @@ def downloadFileFromYoutube(video_id):
 
 # Downloads the video from other client
 def downloadFileFromClient(video_id,video_loc):
+	print DEBUG + 'Downloading video ' + video_id + ' from ' + video_loc
 	videos_path = Current_folder + '/static/Client/videos/'
 	response = requests.get(video_loc, stream=True)
 	
@@ -319,7 +350,6 @@ def getVideoList():
 	return video_file_names
 
 def check_whether_video_is_there(video_id, available):
-	# TODO Check the client whether he actually has the video
 	try:
 		response = requests.get('http://' + available + ':8000/check?v=' + video_id)
 		if response.ok:
@@ -335,10 +365,20 @@ def searchVideo(video_id):
 		'username' : Client_IP_Address,
 		'video' : video_id
 	}
-	response = requests.get('http://' + Server_IP_Address + ':' + Server_Port + '/video/search', params=params)
+
+	proceed = False
+	while not proceed :
+		response = requests.get('http://' + Server_IP_Address + ':' + Server_Port + '/video/search', params=params)
+		if response.ok :
+			proceed = True
+		else :
+			proceed = False
+			startConnect()
+
 	# Check response
 
 	available_list = {}
+	print DEBUG + response.text
 	if len(response.text) > 0:
 		available_list = json.loads(response.text)
 
@@ -363,3 +403,25 @@ def searchVideo(video_id):
 		dw_thread.start()
 
 	return None
+
+def initiateDelete(video_id):
+	params = { 
+				'username' : Client_IP_Address,
+				'video' : video_id,
+			}
+	proceed = False
+	while not proceed:
+		try: 
+			response = requests.delete('http://' + Server_IP_Address + ':' + Server_Port + '/video/remove', params=params )
+			if response.ok :
+				proceed = True
+		except:
+			startConnect()
+
+	if response.text == '100':
+		videos_path = Current_folder + '/static/Client/videos/'
+		video_path = videos_path + video_id + '.mp4'
+		os.remove(video_path)
+		return True
+
+	return False

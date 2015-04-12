@@ -37,9 +37,13 @@ def watch(request):
 
 def delete(request):
 	if 'remove' in request.POST and len(request.POST['remove']) > 0 :
-		# TODO Delete the video
 		video_id = request.POST['remove']
-		return render(request, 'Client/index.html', { 'error_message': 'Delete for video ' + video_id + ' initiated'})
+	
+		msg = 'Unable to delete file as of now'
+		if utilities.initiateDelete(video_id) :
+			msg = 'Video has been deleted'
+
+		return render(request, 'Client/index.html', { 'error_message': msg})
 
 	video_list = utilities.getVideoList()
 	return render(request, 'Client/delete.html', {'video_list': video_list})
