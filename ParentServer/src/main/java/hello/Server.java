@@ -121,6 +121,7 @@ public class Server implements ParentServerApi	{
 		
 		if(users==null)
 		{
+			System.out.println("Srearching main server\n");
 			try{
 				users = masterService.psSearch(hostAdder,videoHash);
 			}
