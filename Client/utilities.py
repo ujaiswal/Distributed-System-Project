@@ -7,14 +7,24 @@ from subprocess import call
 import re
 import threading
 import time
+import json
 
 DEBUG = '[R-Youtube] '
 
+YOUTUBE_VIDEO = 1
+SERVER_VIDEO = 2
+
 # Required to set manually
-Master_Server_IP_Address = '0.0.0.0'
+Master_Server_IP_Address = '192.168.150.4'
+Master_Server_Port = '9000'
 
 Client_IP_Address = '0.0.0.0'
+Client_Port = '8000'
+
+Server_IP_Address_List = {}
+Current_index = 0
 Server_IP_Address = '0.0.0.0'
+Server_Port = '8080'
 
 Local_IP_Address = 'http://localhost:8000'
 Youtube_Address = 'https://youtube.com'
@@ -23,40 +33,93 @@ Youtube_Video_Address = 'https://www.youtube.com/watch?v='
 Youtube_Search_Path = 'https://www.youtube.com/results?search_query='
 Current_folder = os.path.abspath(os.path.dirname(__file__))
 
+
+Downloads = []
+Download_Lock = threading.Lock()
+def P():
+	global Download_Lock
+	Download_Lock.acquire()
+
+def V():
+	global Download_Lock
+	Download_Lock.release()
+
+hb_thread = None
 class HEARTBEAT_Thread (threading.Thread):
 	def __init__(self, threadID, TTL):
 		threading.Thread.__init__(self)
 		self.threadID = threadID
 		self.TTL = TTL
 
+	def stop(self):
+		self._stop.set()
+
+	def stopped(self):
+		return self._stop.isSet()
+
 	def run(self):
 		startSendingHEARTBEATToParentServer(self.TTL)
 
 class FILE_CHK_Thread (threading.Thread):
-    def __init__(self, threadID, delay):
-        threading.Thread.__init__(self)
-        self.threadID = threadID
-        self.delay = delay
+	def __init__(self, threadID, delay):
+		threading.Thread.__init__(self)
+		self.threadID = threadID
+		self.delay = delay
 
-    def run(self):
-    	video_list = getVideoList()
-    	# TODO Send this video list to the parent server
+	def run(self):
+		video_list = getVideoList()
+		prev_video_list = set(video_list)
+		while 1:
+			time.sleep(self.delay)
+			curr_video_list = set(getVideoList())
+			
+			# TODO Compare the prev video list and current video list and send the add or delete command to the server
+			addititons = curr_video_list.difference(prev_video_list)
+			if len(addititons) > 0 :
+				print DEBUG + 'Sending addition to ' + Server_IP_Address
+				params = { 
+					'username' : Client_IP_Address,
+					'video' : ','.join(str(e) for e in addititons)
+				}
+				response = requests.put('http://' + Server_IP_Address + ':' + Server_Port + '/video/add', params=params )
+			
+			deletions = prev_video_list.difference(curr_video_list)
+			if len(deletions) > 0 :
+				params = { 
+					'username' : Client_IP_Address,
+					'video' : ','.join(str(e) for e in deletions)
+				}
+				response = requests.delete('http://' + Server_IP_Address + ':' + Server_Port + '/video/remove', params=params )
+				print DEBUG + 'Sending deletion to ' + Server_IP_Address
 
-    	prev_video_list = set(video_list)
-    	while 1:
-    		time.sleep(self.delay)
-    		curr_video_list = set(getVideoList())
-    		
-    		# TODO Compare the prev video list and current video list and send the add or delete command to the server
-    		addititons = curr_video_list.difference(prev_video_list)
-    		if len(addititons) > 0 :
-    			print DEBUG + 'Sending addition to ' + Server_IP_Address
+			prev_video_list = curr_video_list
 
-    		deletions = prev_video_list.difference(curr_video_list)
-    		if len(deletions) > 0 :
-    			print DEBUG + 'Sending deletion to ' + Server_IP_Address
+class DOWNLOAD_Thread(threading.Thread):
+	def __init__(self, threadID, video_id, case, video_loc):
+		threading.Thread.__init__(self)
+		self.threadID = threadID
+		self.videoID = video_id
+		self.case = case
+		self.videoLOC = video_loc
 
-    		prev_video_list = curr_video_list
+	def run(self):
+		P()
+		global Downloads
+		if self.videoID in Downloads :
+			V()
+			return
+		else :
+			Downloads.append(self.videoID)
+			V()
+
+		if self.case == YOUTUBE_VIDEO:
+			return_code = downloadFileFromYoutube(self.videoID)
+		elif self.case == SERVER_VIDEO:
+			return_code = downloadFileFromClient(self.videoID,self.videoLOC)
+
+		P()
+		Downloads.remove(self.videoID)
+		V()
 
 # Extratcs the IP Address of the client
 def extractClientIP():
@@ -73,22 +136,33 @@ def setClientIP():
 	print DEBUG + 'Client IP Address: ' + Client_IP_Address
 
 # Get the best server from master server on startup
-def  getServerIPfromMaster():
-	# TODO: Implement
-	return '0.0.0.0'
+def  getServerIPsfromMaster():
+	response = requests.get('http://' + Master_Server_IP_Address + ':' + Master_Server_Port + '/client/askPS')
+	while not response.ok :
+		print DEBUG + 'Unable to connect to ' + Master_Server_IP_Address + ':' + Master_Server_Port
+		print DEBUG + 'Retrying ...'
+		time.sleep(1)
+		response = requests.get('http://' + Master_Server_IP_Address + ':' + Master_Server_Port + '/client/askPS')
+	
+	global Server_IP_Address_List
+	Server_IP_Address_List = json.loads(response.text)
 
 # Sets the global variable Server_IP_Address
 def setServerIP():
-	global Server_IP_Address
-	Server_IP_Address = getServerIPfromMaster()
-	print DEBUG + 'Server IP Address: ' + Server_IP_Address
+	if Server_IP_Address_List :
+		global Server_IP_Address
+		global Current_index
+		Server_IP_Address = str(Server_IP_Address_List[Current_index])
+		Current_index = (Current_index + 1) % len(Server_IP_Address_List)
+		print DEBUG + 'Server IP Address: ' + Server_IP_Address
 
 def startSendingHEARTBEATToParentServer(TTL):
 	delay = TTL / 3
 	while 1:
-		# TODO Implement heartbeat sending code
-
-		print DEBUG + '%s:\t%s' % ( 'Sent HEARTBEAT to ' + Server_IP_Address + ' at', time.ctime(time.time()) )
+		params = { 'username': Client_IP_Address }
+		response = requests.get('http://' + Server_IP_Address + ':' + Server_Port + '/client/heartbeat', params=params )
+		if response.ok:
+			print DEBUG + '%s:\t%s' % ( 'Sent HEARTBEAT to ' + Server_IP_Address + ':' + Server_Port, response.text )
 		time.sleep(delay)
 
 # Gets TTL from parent server
@@ -99,6 +173,11 @@ def getTTLfromParentServer():
 # Tell parent server that you are alive and well periodically
 def startHEARTBEAT():
 	TTL = getTTLfromParentServer()
+	
+	global hb_thread
+	if hb_thread and hb_thread.isAlive():
+		hb_thread.stop()
+
 	hb_thread = HEARTBEAT_Thread(1, TTL)
 	try:
 		hb_thread.start()
@@ -114,8 +193,30 @@ def startFileChecking():
 	except:
 		print DEBUG + "Error: unable to start FILE CHECK thread"
 
+def startConnect():
+	data = Client_IP_Address
+	headers = {'Content-Type': 'text/plain'}
+
+	video_list = getVideoList()
+
+	if video_list:
+		data = data + ',' + ','.join(video_list)
+
+	proceed = False
+	while not proceed :
+		try :
+			print DEBUG + 'Connecting to ' + Server_IP_Address + ':' + Server_Port	
+			response = requests.post('http://' + Server_IP_Address + ':' + Server_Port + '/client/connect', headers=headers, data=data)
+			if response.ok :
+				proceed = True
+		except :
+			proceed = False
+			setServerIP()
+
+
 def connectToParentServer():
-	# TODO Implement connection code
+	# Begin connection
+	startConnect()
 
 	# After connection start heartbeat
 	startHEARTBEAT()
@@ -154,13 +255,11 @@ def watchVideo(video_id, src = None):
 	soup = BeautifulSoup(html)
 
 	if src:
-
 		video_divs = soup.find_all('div', {'id': 'player-mole-container'})
 		for div in video_divs:
 			for player_div in div.find_all('div', {'id': 'player-api'}):
 				player_div.extract()
-			new_tag = soup.new_tag('video', src='http://' + src + ':8000/static/Client/videos/' + video_id + '.mp4')	
-			# div['src'] = 'http://' + src + ':8000/static/Client/videos/' + video_id + '.mp4'
+			new_tag = soup.new_tag('video', src='http://' + src + ':8000/static/Client/videos/' + video_id + '.mp4')
 			new_tag['controls'] = ''
 			new_tag['type'] = 'video/mp4'
 			div.append(new_tag)
@@ -180,6 +279,22 @@ def downloadFileFromYoutube(video_id):
 	return_code = call(['youtube-dl', Youtube_Video_Address + video_id, '-o', videos_path + video_id + '.mp4'])
 	return return_code
 
+# Downloads the video from other client
+def downloadFileFromClient(video_id,video_loc):
+	videos_path = Current_folder + '/static/Client/videos/'
+	response = requests.get(video_loc, stream=True)
+	
+	if response.ok:
+		with open(videos_path + video_id + '.mp4', 'wb') as handle:
+			for block in response.iter_content(1024):
+				if not block:
+					break
+				handle.write(block)
+		return 0
+
+	return 1
+
+
 # Checks for the video in local file list
 def findVideo(video_id):
 	return video_id in getVideoList()
@@ -188,5 +303,51 @@ def findVideo(video_id):
 def getVideoList():
 	videos_path = Current_folder + '/static/Client/videos/'
 	video_files = [ f for f in os.listdir(videos_path) if os.path.isfile(os.path.join(videos_path,f)) ]
-	video_file_names = [re.search('(.+?)\..+', video_file).group(1) for video_file in video_files ]
+	video_file_names = [re.search('(.+?)\.mp4', video_file).group(1) for video_file in video_files ]
 	return video_file_names
+
+def check_whether_video_is_there(video_id, available):
+	# TODO Check the client whether he actually has the video
+	try:
+		response = requests.get('http://' + available + ':8000/check?v=' + video_id)
+		if response.ok:
+			return True
+	except:
+		pass
+
+	return False
+
+# Search video in parent server
+def searchVideo(video_id):
+	params = {
+		'username' : Client_IP_Address,
+		'video' : video_id
+	}
+	response = requests.get('http://' + Server_IP_Address + ':' + Server_Port + '/video/search', params=params)
+	# Check response
+
+	available_list = {}
+	if len(response.text) > 0:
+		available_list = json.loads(response.text)
+
+	available = None
+	if available_list:
+		got_it = False
+		for i in xrange(len(available_list)):
+			available = str(available_list[i])
+			if check_whether_video_is_there(video_id, available):
+				got_it = True
+				break
+		if not got_it:
+			available = None
+
+	if available :
+		video_loc = 'http://' + available + ':8000/static/Client/videos/' + video_id + '.mp4'  
+		dw_thread = DOWNLOAD_Thread(1,video_id,SERVER_VIDEO,video_loc)
+		dw_thread.start()
+		return available
+	else :
+		dw_thread = DOWNLOAD_Thread(1,video_id,YOUTUBE_VIDEO,None)
+		dw_thread.start()
+
+	return None
