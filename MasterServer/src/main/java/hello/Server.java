@@ -63,7 +63,7 @@ public class Server implements MasterServerApi {
 
 	public static final int FAILED = -1;
 	public static final int ACK = 100;
-	public static final int TTL1 = 10*1000; //60 seconds
+	public static final int TTL1 = 10000*1000; //60 seconds
 	public static final int SCHEDULED_CHECK = 2*1000; //10 seconds
 
 	// An in-memory list that the servlet uses to store the
@@ -109,7 +109,7 @@ public class Server implements MasterServerApi {
 
 	@RequestMapping(value=PS_HEARTBEAT,method=RequestMethod.GET)
 	public @ResponseBody int psHeartBeat(@RequestParam(PS_PARAMETER) String ps){
-		System.out.println("RECIEVED_HEARTBEAT");
+		// System.out.println("RECIEVED_HEARTBEAT");
 		if(ps_infoMap.containsKey(ps))
 		{
 			ps_infoMap.get(ps).ttl = System.currentTimeMillis()+TTL1;
@@ -174,10 +174,13 @@ public class Server implements MasterServerApi {
 
 	@RequestMapping(value=PS_VIDEO_SEARCH,method=RequestMethod.GET)
 	public @ResponseBody Set<String>  psSearch(@RequestParam(PS_PARAMETER) String ps,@RequestParam(VIDEO_PARAMETER) String video){
+		
+
 		Set<String> users = vidName_UserMap.get(video);
 		//TODO check is following line gives error in null
-		System.out.println("Search result : "+ Arrays.asList(users.toArray(new String[0])) );
 		if(users==null) return null;
+		System.out.println("Search : "+users.size());
+		// System.out.println("Search result : "+ Arrays.asList(users.toArray(new String[0])) );
 		// String [] a = new String[]
 		return users;
 	}
@@ -185,6 +188,7 @@ public class Server implements MasterServerApi {
 	@RequestMapping(value=PS_CLIENT_CONNECT,method=RequestMethod.POST)
 	public @ResponseBody int psConnectClient(@RequestParam(PS_PARAMETER) String ps, @RequestParam(USER_PARAMETER) String user, @RequestBody String[] videos){
 		try{
+			System.out.println("Trying connect client");
 			if(!ps_infoMap.containsKey(ps)) return PS_NOT_CONNECTED;
 			int reply;
 			if(user_vidNameMap.containsKey(user))
@@ -197,7 +201,7 @@ public class Server implements MasterServerApi {
 			 	user_vidNameMap.put(user, new HashSet<String>());
 			}	
 			Set<String> vidSet = user_vidNameMap.get(user);
-			for (int i=1;i<videos.length ;i++ ) {
+			for (int i=0;i<videos.length ;i++ ) {
 				String temp = videos[i].trim();
 				if(!temp.equals(""))
 				{
@@ -420,7 +424,7 @@ public class Server implements MasterServerApi {
 			Collection<PSInfo> allps = ps_infoMap.values();
 			Iterator<PSInfo> it= allps.iterator();
 			long time = System.currentTimeMillis();
-			System.out.println("Time:"+time+" "+(time+TTL1));
+			// System.out.println("Time:"+time+" "+(time+TTL1));
 			int count=0;
 			while(it.hasNext())
 			{
@@ -430,7 +434,7 @@ public class Server implements MasterServerApi {
 					removePS(temp);
 				}
 			}
-			System.out.println("Debug: Scheduled Check count:"+count+" user count:"+ps_infoMap.size());
+			// System.out.println("Debug: Scheduled Check count:"+count+" user count:"+ps_infoMap.size());
 			System.gc();
 		}
 		catch(Exception e)
@@ -535,7 +539,7 @@ public class Server implements MasterServerApi {
 	}
 
 	@RequestMapping(value=CLIENT_ASK_PS_PATH, method=RequestMethod.GET)
-	public List<String> getPSList()
+	public @ResponseBody List<String> getPSList()
 	{
 		//TODO check this fn;
 		List<String> allPS =Arrays.asList(ps_infoMap.keySet().toArray(new String[0]));
