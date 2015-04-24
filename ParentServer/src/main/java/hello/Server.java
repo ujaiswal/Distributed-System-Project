@@ -310,12 +310,12 @@ public class Server implements ParentServerApi	{
 	}
 
 	@RequestMapping(value=PS_DELETE_MULTI_CLIENT,method = RequestMethod.POST)
-	public int ps_DeleteMultipleClient(@RequestBody String[] user)
+	public @ResponseBody int ps_DeleteMultipleClient(@RequestBody String[] user)
 	{
 		try{
 			for(int i=0;i<user.length;i++)
 			{
-				activeUsers.remove(user);
+				activeUsers.remove(user[i]);
 			}
 			return ACK;
 		}
@@ -337,6 +337,7 @@ public class Server implements ParentServerApi	{
 		{
 			count++;
 			String user = it.next();
+			if(user==null) continue;
 			if(userAliveMap.containsKey(user))
 			{
 				if(userAliveMap.get(user).longValue()<time)
